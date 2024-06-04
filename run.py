@@ -9,10 +9,9 @@ import numpy as np
 import random
 from torchvision import transforms
 from torch.utils.data import DataLoader
-from models.bert_model import HMNeTREModel, HMNeTNERModel
-from processor.dataset import MMREProcessor, MMPNERProcessor, MMREDataset, MMPNERDataset
-from modules.train import RETrainer, NERTrainer
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+import MoSiNetREModel, MoSiNetNERModel
+import MMREProcessor, MMPNERProcessor, MMREDataset, MMPNERDataset
+import RETrainer, NERTrainer
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 # from tensorboardX import SummaryWriter
@@ -64,8 +63,6 @@ DATA_PATH = {
                 'train_auximgs': 'data/NER_data/twitter2017/twitter2017_train_dict.pth',
                 'dev_auximgs': 'data/NER_data/twitter2017/twitter2017_val_dict.pth',
                 'test_auximgs': 'data/NER_data/twitter2017/twitter2017_test_dict.pth',
-
-
             },
         
 }
