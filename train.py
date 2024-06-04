@@ -80,9 +80,6 @@ class RETrainer(BaseTrainer):
                     self.optimizer.step()
                     self.scheduler.step()
                     self.optimizer.zero_grad()
-
-                    # 下面代码在干嘛
-                    #
                     if self.step % self.refresh_step == 0:
                         avg_loss = float(avg_loss) / self.refresh_step
                         print_output = "loss:{:<6.5f}".format(avg_loss)
@@ -112,8 +109,6 @@ class RETrainer(BaseTrainer):
             with tqdm(total=len(self.dev_data), leave=False, dynamic_ncols=True) as pbar:
                 pbar.set_description_str(desc="Dev")
                 total_loss = 0
-                # 遍历dev_data
-                # batch: (input_ids, token_type_ids, attention_mask, labels)
                 for batch in self.dev_data:
                     step += 1
                     batch = (tup.to(self.args.device)  if isinstance(tup, torch.Tensor) else tup for tup in batch)  # to cpu/cuda device
@@ -182,21 +177,15 @@ class RETrainer(BaseTrainer):
                     true_labels.extend(labels.view(-1).detach().cpu().tolist())
                     pred_labels.extend(preds.view(-1).detach().cpu().tolist())
 
-                    #将向量和label保存到单独的文件中
-
-                    # 输出样本的分类结果和对应的样本，并保存到文件
-
                     # batch_text = batch_list[0]  # 取得token id
                     # for i in range(len(batch_text)):
                     #     sample_text = batch_text[i]
                     #     sample_text = self.tokenizer.decode(sample_text)
                     #     true_label = labels[i].item()
                     #     pred_label = preds[i].item()
-                    #
-                    #     # 打印样本数据和预测标签
+
                     #     #print("Sample Text: {}\nTrue Label: {}\nPredicted Label: {}\n".format(sample_text, true_label,
                     #     #                                                                      pred_label))
-                    #     # 保存样本数据和预测标签到文件
                     #     with open("predictions.csv", mode='a', newline='', encoding='utf-8') as file:
                     #         writer = csv.writer(file)
                     #         writer.writerow([sample_text, true_label, pred_label])
@@ -224,7 +213,6 @@ class RETrainer(BaseTrainer):
         colors = plt.cm.tab20(np.linspace(0, 1, 20))
         extra_colors = plt.cm.tab20b(np.linspace(0, 1, 3))
         all_colors = np.vstack((colors, extra_colors))
-        # 创建一个自定义的 ListedColormap
         cmap = ListedColormap(all_colors)
         all_sample_vectors_tsne = tsne.fit_transform(all_sample_vectors)
         plt.scatter(all_sample_vectors_tsne[:, 0], all_sample_vectors_tsne[:, 1], c=all_labels,cmap=cmap)
