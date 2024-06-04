@@ -24,19 +24,16 @@ logger = logging.getLogger(__name__)
 
 
 MODEL_CLASSES = {
-    'MRE': HMNeTREModel,
-    'twitter15': HMNeTNERModel,
-    'twitter17': HMNeTNERModel
+    'MRE': MoSiNetREModel,
+    'twitter17': MoSiNetNERModel
 }
 
 TRAINER_CLASSES = {
     'MRE': RETrainer,
-    'twitter15': NERTrainer,
     'twitter17': NERTrainer
 }
 DATA_PROCESS = {
     'MRE': (MMREProcessor, MMREDataset),
-    'twitter15': (MMPNERProcessor, MMPNERDataset), 
     'twitter17': (MMPNERProcessor, MMPNERDataset)
 }
 
@@ -54,16 +51,6 @@ DATA_PATH = {
             're_path': 'data/RE_data/ours_rel2id.json'
             },
     
-    'twitter15': {
-                # text data
-                'train': 'data/NER_data/twitter2015/train.txt',
-                'dev': 'data/NER_data/twitter2015/valid.txt',
-                'test': 'data/NER_data/twitter2015/test.txt',
-                # {data_id : object_crop_img_path}
-                'train_auximgs': 'data/NER_data/twitter2015/twitter2015_train_dict.pth',
-                'dev_auximgs': 'data/NER_data/twitter2015/twitter2015_val_dict.pth',
-                'test_auximgs': 'data/NER_data/twitter2015/twitter2015_test_dict.pth'
-            },
 
     'twitter17': {
                 # text data
@@ -78,12 +65,6 @@ DATA_PATH = {
                 'dev_auximgs': 'data/NER_data/twitter2017/twitter2017_val_dict.pth',
                 'test_auximgs': 'data/NER_data/twitter2017/twitter2017_test_dict.pth',
 
-                 'train_weight_weak': 'data/NER_data/twitter2017/train_weight_weak.txt',
-                    'dev_weight_weak': 'data/NER_data/twitter2017/val_weight_weak.txt',
-                    'test_weight_weak': 'data/NER_data/twitter2017/test_weight_weak.txt',
-                    'train_weight_strong': 'data/NER_data/twitter2017/train_weight_strong.txt',
-                    'dev_weight_strong': 'data/NER_data/twitter2017/val_weight_strong.txt',
-                    'test_weight_strong': 'data/NER_data/twitter2017/test_weight_strong.txt',
 
             },
         
@@ -94,7 +75,6 @@ IMG_PATH = {
     'MRE': {'train': 'data/RE_data/img_org/train/',
             'dev': 'data/RE_data/img_org/val/',
             'test': 'data/RE_data/img_org/test'},
-    'twitter15': 'data/NER_data/twitter2015_images',
     'twitter17': 'data/NER_data/twitter2017_images',
 }
 
@@ -105,12 +85,7 @@ AUX_PATH = {
             'dev': 'data/RE_data/img_vg/val/crops',
             'test': 'data/RE_data/img_vg/test/crops'
     },
-    'twitter15': {
-                'train': 'data/NER_data/twitter2015_aux_images/train/crops',
-                'dev': 'data/NER_data/twitter2015_aux_images/val/crops',
-                'test': 'data/NER_data/twitter2015_aux_images/test/crops',
-            },
-
+   
     'twitter17': {
                 'train': 'data/NER_data/twitter2017_aux_images/train/crops',
                 'dev': 'data/NER_data/twitter2017_aux_images/val/crops',
@@ -190,13 +165,13 @@ def main():
         re_dict = processor.get_relation_dict()
         num_labels = len(re_dict)
         tokenizer = processor.tokenizer
-        model = HMNeTREModel(num_labels, tokenizer, args=args)
+        model = MoSiNetREModel(num_labels, tokenizer, args=args)
         model = torch.nn.DataParallel(model, device_ids=[0, 1,2,3])
         trainer = Trainer(train_data=train_dataloader, dev_data=dev_dataloader, test_data=test_dataloader, model=model, processor=processor, args=args, logger=logger, writer=writer)
     else:   # NER task
         label_mapping = processor.get_label_mapping()
         label_list = list(label_mapping.keys())
-        model = HMNeTNERModel(label_list, args)
+        model = MoSiNetNERModel(label_list, args)
         # model = torch.nn.DataParallel(model, device_ids=[0, 1])
         trainer = Trainer(train_data=train_dataloader, dev_data=dev_dataloader, test_data=test_dataloader, model=model, label_map=label_mapping, args=args, logger=logger, writer=writer)
 
