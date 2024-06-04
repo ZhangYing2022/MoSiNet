@@ -19,12 +19,7 @@ class MMREProcessor(object):
         self.tokenizer.add_special_tokens({'additional_special_tokens':['<s>', '</s>', '<o>', '</o>']})
 
     def load_from_file(self, mode="train", sample_ratio=1.0):
-        """
-        Args:
-            mode (str, optional): dataset mode. Defaults to "train".
-            sample_ratio (float, optional): sample ratio in low resouce. Defaults to 1.0.
-        """
-        #读取文本数据
+
         load_file = self.data_path[mode]
         logger.info("Loading data from {}".format(load_file))
         with open(load_file, "r", encoding="utf-8") as f:
@@ -39,8 +34,6 @@ class MMREProcessor(object):
                 imgids.append(line['img_id'])
                 dataid.append(i)
         assert len(words) == len(relations) == len(heads) == len(tails) == (len(imgids))
-
-        #读取对象图片
         # aux image
         aux_path = self.data_path[mode+"_auximgs"]
         aux_imgs = torch.load(aux_path)
@@ -60,13 +53,11 @@ class MMREProcessor(object):
         
         return {'words':words, 'relations':relations, 'heads':heads, 'tails':tails, 'imgids': imgids, 'dataid': dataid, 'aux_imgs':aux_imgs}
        
-
     def get_relation_dict(self):
         with open(self.re_path, 'r', encoding="utf-8") as f:
             line = f.readlines()[0]
             re_dict = json.loads(line)
         return re_dict
-
 
 class MMREDataset(Dataset):
     def __init__(self, processor, transform, img_path=None, aux_img_path=None, max_seq=40, sample_ratio=1.0, mode="train") -> None:
@@ -79,25 +70,7 @@ class MMREDataset(Dataset):
         self.data_dict = self.processor.load_from_file(mode, sample_ratio)
         self.re_dict = self.processor.get_relation_dict()
         self.tokenizer = self.processor.tokenizer
-
-        #modify the weight by11.26
         text_path = self.processor.data_path[mode]
-        # self.weak_ori = text_path.replace('ours_{}.txt'.format(mode), '{}_weight_weak.txt'.format(mode))
-        # self.strong_ori = text_path.replace('ours_{}.txt'.format(mode), '{}_weight_strong.txt'.format(mode))
-        #load the correlation scores
-        # with open(self.weak_ori, 'r', encoding='utf-8') as f_rel:
-        #     lines = f_rel.readlines()
-        #     self.weak_ori = {}
-        #     for line in lines:
-        #         img_id_key, score = line.split('\t')[0], float(line.split('\t')[1].replace('\n', ''))
-        #         self.weak_ori[img_id_key] = score
-        # with open(self.strong_ori, 'r', encoding='utf-8') as f_rel:
-        #     lines = f_rel.readlines()
-        #     self.strong_ori = {}
-        #     for line in lines:
-        #         img_id_key, score = line.split('\t')[0], float(line.split('\t')[1].replace('\n', ''))
-        #         self.strong_ori[img_id_key] = score
-
         self.phrase_path = text_path.replace('ours_{}.txt'.format(mode), 'phrase_text_{}.json'.format(mode))
         f_grounding = open(self.phrase_path, 'r')
         self.phrase_data = json.load(f_grounding)
@@ -135,7 +108,6 @@ class MMREDataset(Dataset):
             torch.tensor(token_type_ids), torch.tensor(attention_mask)
         re_label = self.re_dict[relation]  # label to id
 
-        #modify 11.26 获取短语级文本
         phrase= self.phrase_data[str(idx)]  # phrase
         encode_dict_ph = self.tokenizer(text=phrase, max_length=20, truncation=True, padding='max_length')
         input_ids_phrase, attention_mask_phrase = encode_dict_ph.data['input_ids'], encode_dict_ph.data['attention_mask']
@@ -162,13 +134,11 @@ class MMREDataset(Dataset):
                     aux_img_paths  = self.data_dict['aux_imgs'][item_id]
                     aux_img_paths = [os.path.join(self.aux_img_path, path) for path in aux_img_paths]
                 # discard more than 3 aux image
-                # 选择3张aux image（这里的选择没有考虑相关性）
                 for i in range(min(3, len(aux_img_paths))):
                     aux_img = Image.open(aux_img_paths[i]).convert('RGB')
                     aux_img = self.transform(aux_img)
                     aux_imgs.append(aux_img)
                 # padding zero if less than 3
-                # 如果不足3张，用0矩阵填充
                 for i in range(3-len(aux_img_paths)):
                     aux_imgs.append(torch.zeros((3, 224, 224)))
                 aux_imgs = torch.stack(aux_imgs, dim=0)
@@ -184,20 +154,12 @@ class MMREDataset(Dataset):
 
 
 
-
-
-
 class MMPNERProcessor(object):
     def __init__(self, data_path, bert_name) -> None:
         self.data_path = data_path
         self.tokenizer = BertTokenizer.from_pretrained('../bert-base-uncased', do_lower_case=True)
 
     def load_from_file(self, mode="train", sample_ratio=1.0):
-        """
-        Args:
-            mode (str, optional): dataset mode. Defaults to "train".
-            sample_ratio (float, optional): sample ratio in low resouce. Defaults to 1.0.
-        """
         load_file = self.data_path[mode]
         logger.info("Loading data from {}".format(load_file))
         with open(load_file, "r", encoding="utf-8") as f:
@@ -226,22 +188,6 @@ class MMPNERProcessor(object):
         # load aux image
         aux_path = self.data_path[mode + "_auximgs"]
         aux_imgs = torch.load(aux_path)
-
-        # load weak correlation between text and original image
-        with open(self.data_path['%s_weight_weak' % mode], 'r', encoding='utf-8') as f_rel:
-            lines = f_rel.readlines()
-            weak_ori = {}
-            for line in lines:
-                img_id_key, score = line.split('	')[0], float(line.split('	')[1].replace('\n', ''))
-                weak_ori[img_id_key] = score
-
-        # load strong correlation between text and original image
-        with open(self.data_path['%s_weight_strong' % mode], 'r', encoding='utf-8') as f_rel:
-            lines = f_rel.readlines()
-            strong_ori = {}
-            for line in lines:
-                img_id_key, score = line.split('	')[0], float(line.split('	')[1].replace('\n', ''))
-                strong_ori[img_id_key] = score
 
         # load phrases for visual objects detection
         with open(self.data_path['%s_grounding_text' % mode], 'r', encoding='utf-8') as f_ner_phrase_text:
@@ -286,8 +232,6 @@ class MMPNERDataset(Dataset):
 
     def __getitem__(self, idx):
         word_list, label_list, img = self.data_dict['words'][idx], self.data_dict['targets'][idx], self.data_dict['imgs'][idx]
-        # get correlation coefficient
-        weak_ori, strong_ori = self.data_dict['weak_ori'][img], self.data_dict['strong_ori'][img],
         phrase_text = self.data_dict['phrase_text'][img]
         tokens, labels = [], []
         for i, word in enumerate(word_list):
