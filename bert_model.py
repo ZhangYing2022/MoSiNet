@@ -16,10 +16,9 @@ class ImageModel(nn.Module):
 
     
     def forward(self, x, aux_imgs=None):
-        # full image prompt 全局图像特征
+        # full image prompt 
         prompt_guids= self.get_resnet_prompt(x)    # 4x[bsz, 256, 7, 7]
 
-        # aux_imgs: bsz x 3(nums) x 3 x 224 x 224 对象特征 取3个对象？
         if aux_imgs is not None:
             aux_prompt_guids = []   # goal: 3 x (4 x [bsz, 256, 7, 7])
             aux_imgs = aux_imgs.permute([1, 0, 2, 3, 4])  # 3(nums) x bsz x 3 x 224 x 224
@@ -44,14 +43,12 @@ class ImageModel(nn.Module):
         """
         # image: bsz x 3 x 224 x 224
         prompt_guids = []
-        # 遍历resent的每一层的名字和层
         for name, layer in self.resnet.named_children():
             if name == 'fc' or name == 'avgpool':  continue
             x = layer(x)    # (bsz, 256, 56, 56)
             if 'layer' in name:
                 bsz, channel, ft, _ = x.size() #256是channel，56是feature map的大小
                 kernel = ft // 2 # 28
-                # 28x28的feature map，每个feature map取一个点，然后做平均池化，得到一个值，然后把这个值作为prompt
                 prompt_kv = nn.AvgPool2d(kernel_size=(kernel, kernel), stride=kernel)(x)    # (bsz, 256, 7, 7)
                 prompt_guids.append(prompt_kv)   # conv2: (bsz, 256, 7, 7)
 
@@ -60,9 +57,9 @@ class ImageModel(nn.Module):
 
 
 
-class HMNeTREModel(nn.Module):
+class MoSiNetModel(nn.Module):
     def __init__(self, num_labels, tokenizer, args):
-        super(HMNeTREModel, self).__init__()
+        super(MoSiNetREModel, self).__init__()
         #self.bert = BertModel.from_pretrained(args.bert_name)
         self.bert = BertModel.from_pretrained('../bert-base-uncased')
         self.bert.resize_token_embeddings(len(tokenizer))
@@ -74,8 +71,6 @@ class HMNeTREModel(nn.Module):
         self.tail_start = tokenizer.convert_tokens_to_ids("<o>")
         self.resnet = resnet50(pretrained=True)
         self.tokenizer = tokenizer
-
-        # modify by zhang11.26
         # the attention mechanism for fine-grained features
         self.hidden_size = 768 * 2
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
@@ -141,8 +136,6 @@ class HMNeTREModel(nn.Module):
             prompt_guids_mask = torch.ones((bsz, prompt_guids_length)).to(self.args.device)
             prompt_attention_mask = torch.cat((prompt_guids_mask, attention_mask), dim=1)
 
-
-        # modify by zhang11.26
         image_ori = images
         image_ori_objects = aux_imgs.reshape(-1, 3, 224, 224)
         feature_OriImg_FineGrained = self.get_resnet_feature(image_ori)
@@ -171,13 +164,10 @@ class HMNeTREModel(nn.Module):
         bsz, seq_len, hidden_size = last_hidden_state.shape
         entity_hidden_state = torch.Tensor(bsz, 2*hidden_size) # batch, 2*hidden
 
-
-
         hidden_k_text = self.linear_k_fine(last_hidden_state)
         hidden_v_text = self.linear_v_fine(last_hidden_state)
         pic_q_origin = self.linear_q_fine(pic_ori)
-        # 3 与句子做注意力之后全局图像特征
-        #试下V'=W[V;T] 2.6
+
         temp_T = self.conv1d(hidden_v_text)
         temp_T = temp_T.view(bsz, 49, 768)
         pic_q_origin_1 = torch.cat((pic_q_origin, temp_T), dim=-1)
@@ -191,7 +181,6 @@ class HMNeTREModel(nn.Module):
         pic_original_objects = torch.sum(torch.tanh(self.att(pic_q_ori_objects, hidden_k_phrases, hidden_v_phrases)),
                                          dim=1)
 
-        # 2号 短语特征
         hidden_phrases = torch.sum(hidden_phrases, dim=1)
 
         for i in range(bsz):
@@ -200,16 +189,13 @@ class HMNeTREModel(nn.Module):
             head_hidden = last_hidden_state[i, head_idx, :].squeeze()
             tail_hidden = last_hidden_state[i, tail_idx, :].squeeze()
             entity_hidden_state[i] = torch.cat([head_hidden, tail_hidden], dim=-1)
-        #1号 实体对特征
+
         entity_hidden_state = entity_hidden_state.to(self.args.device)
-
-
 
         x = torch.cat([hidden_phrases, entity_hidden_state,
                        pic_original+pic_original_objects], dim=-1)
         x = self.linear_final(self.dropout_linear(x))
         x = self.dropout(x)
-
 
         logits = self.classifier(x)
         logits_phrase = self.out_phrase(hidden_phrases)
@@ -229,7 +215,6 @@ class HMNeTREModel(nn.Module):
 
         return torch.matmul(att_map, value)
     def get_resnet_feature(self, x):
-        # 遍历resent的每一层的名字和层
         for name, layer in self.resnet.named_children():
             if name == 'fc' or name == 'avgpool':  continue
             x = layer(x)
@@ -238,7 +223,6 @@ class HMNeTREModel(nn.Module):
     def get_visual_prompt(self, images, aux_imgs, hybrid):
         bsz = images.size(0)
         # full image prompt
-        # 获取全局图像和局部图像的resnet特征，每个特征有4块
         prompt_guids, aux_prompt_guids = self.image_model(images, aux_imgs)  # [bsz, 256, 2, 2], [bsz, 512, 2, 2]....
 
         # Hybrid Modal Network
@@ -249,25 +233,21 @@ class HMNeTREModel(nn.Module):
         a = self.weights[0]
         b = self.weights[1]
 
-        # resize全局特征
+      
         prompt_guids = torch.cat(prompt_guids, dim=1).view(bsz, self.args.prompt_len, -1)   # bsz, 4, 3840
-        #resize 局部特征
         aux_prompt_guids = [torch.cat(aux_prompt_guid, dim=1).view(bsz, self.args.prompt_len, -1) for aux_prompt_guid in aux_prompt_guids]  # 3 x [bsz, 4, 3840]
-        #再通过两层全连接层，再将全局特征和局部特征映射到4*2*768维？
         prompt_guids = self.encoder_conv(prompt_guids)  # bsz, 4, 4*2*768
         aux_prompt_guids = [self.encoder_conv(aux_prompt_guid) for aux_prompt_guid in aux_prompt_guids] # 3 x [bsz, 4, 4*2*768]
-        # 将特征映射到4*2*768维后，再将其分成4份，每份2*768维
         split_prompt_guids = prompt_guids.split(768*2, dim=-1)   # 4 x [bsz, 4, 768*2]
         split_aux_prompt_guids = [aux_prompt_guid.split(768*2, dim=-1) for aux_prompt_guid in aux_prompt_guids]   # 3x [4 x [bsz, 4, 768*2]]
         sum_prompt_guids = torch.stack(split_prompt_guids).sum(0).view(bsz, -1) / 4     # bsz, 4, 768*2
-
         sum_prompt_guids = a*A*sum_prompt_guids + b*sum_prompt_guids
         sum_prompt_guids = sum_prompt_guids.view(bsz, -1)
 
         result = []
         for idx in range(12):  # 12
             prompt_gate = self.softmax(F.leaky_relu(self.gates[idx](sum_prompt_guids)), dim=-1)
-            #prompt_gate = torch.ones_like(prompt_gate) / 4  消融：均等分配
+            #prompt_gate = torch.ones_like(prompt_gate) / 4  
             key_val = torch.zeros_like(split_prompt_guids[0]).to(self.args.device)  # bsz, 4, 768*2
             for i in range(4):
                 key_val = key_val + torch.einsum('bg,blh->blh', prompt_gate[:, i].view(-1, 1), split_prompt_guids[i])
