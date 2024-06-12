@@ -37,7 +37,7 @@ class ImageModel(nn.Module):
 
 
 
-class MoSiNetModel(nn.Module):
+class MoSiNetREModel(nn.Module):
     def __init__(self, num_labels, tokenizer, args):
         super(MoSiNetREModel, self).__init__()
         self.bert = BertModel.from_pretrained('../bert-base-uncased')
@@ -123,9 +123,9 @@ class MoSiNetModel(nn.Module):
 
 
 
-class HMNeTNERModel(nn.Module):
+class MoSiNetNERModel(nn.Module):
     def __init__(self, label_list, args):
-        super(HMNeTNERModel, self).__init__()
+        super(MoSiNetNERModel, self).__init__()
         self.args = args
         self.prompt_dim = args.prompt_dim
         self.prompt_len = args.prompt_len
