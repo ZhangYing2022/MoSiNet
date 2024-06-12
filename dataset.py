@@ -204,7 +204,7 @@ class MMPNERProcessor(object):
             return {"words": sample_raw_words, "targets": sample_raw_targets, "imgs": sample_imgs, "aux_imgs": aux_imgs}
 
         return {"words": raw_words, "targets": raw_targets, "imgs": imgs, "aux_imgs": aux_imgs,
-                'weak_ori':weak_ori, 'strong_ori':strong_ori,'phrase_text':data_phrase_text}
+                'phrase_text':data_phrase_text}
 
     def get_label_mapping(self):
         LABEL_LIST = ["O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "X", "[CLS]",
@@ -264,7 +264,7 @@ class MMPNERDataset(Dataset):
                 image = Image.open(img_path).convert('RGB')
                 image = self.transform(image)
 
-            weight = [weak_ori, strong_ori]
+           
             if self.aux_img_path is not None:
                 aux_imgs = []
                 aux_img_paths = []
@@ -282,7 +282,7 @@ class MMPNERDataset(Dataset):
                 aux_imgs = torch.stack(aux_imgs, dim=0)
                 assert len(aux_imgs) == 3
                 return torch.tensor(input_ids), torch.tensor(token_type_ids), torch.tensor(attention_mask), torch.tensor(labels), image, aux_imgs, \
-                    torch.tensor(weight), torch.tensor(input_ids_g), torch.tensor(token_type_ids_g), torch.tensor(attention_mask_g)
+                    torch.tensor(input_ids_g), torch.tensor(token_type_ids_g), torch.tensor(attention_mask_g)
 
         assert len(input_ids) == len(token_type_ids) == len(attention_mask) == len(labels)
         return torch.tensor(input_ids), torch.tensor(token_type_ids), torch.tensor(attention_mask), torch.tensor(labels)
